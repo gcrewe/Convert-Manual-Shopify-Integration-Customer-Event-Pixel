@@ -7,9 +7,9 @@ const checkoutStarted_goalid = '100132287';
 
 // Configuration object for filtering criteria
 const filterCriteria = {
-    checkExistence: ['data.sku'], // List of properties that must exist
+    checkExistence: ['sku'], // List of properties that must exist
     matchValue: {
-        'data.sku': 'target_sku_value' // Exact string values to match
+        'sku': '23026961-pink-united-states-l-diameter-7-5cm' // Exact string values to match
     }
 };
 
@@ -28,26 +28,49 @@ function debugLog(message, ...optionalParams) {
     }
 }
 
+// Helper function to search for a property name anywhere in the object
+function findProperty(obj, propertyName) {
+    if (obj === undefined || obj === null) {
+        return undefined;
+    }
+    if (obj.hasOwnProperty(propertyName)) {
+        return obj[propertyName];
+    }
+    for (const key in obj) {
+        if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+            const result = findProperty(obj[key], propertyName);
+            if (result !== undefined) {
+                return result;
+            }
+        }
+    }
+    return undefined;
+}
+
 function checkCriteria(purchase_event, criteria) {
+    let allCriteriaMet = true; // Variable to track if all criteria are met
+
     // Check for the existence of properties
-    for (const prop of criteria.checkExistence) {
-        const value = prop.split('.').reduce((obj, key) => obj && obj[key], purchase_event);
+    for (const propertyName of criteria.checkExistence) {
+        const value = findProperty(purchase_event, propertyName);
+        debugLog(`Checking existence of property: ${propertyName}, Found value: ${value}`);
         if (value === undefined) {
-            debugLog(`Property ${prop} does not exist.`);
-            return false;
+            debugLog(`Property ${propertyName} does not exist.`);
+            allCriteriaMet = false;
         }
     }
 
     // Check for matching value patterns
-    for (const [prop, targetValue] of Object.entries(criteria.matchValue)) {
-        const value = prop.split('.').reduce((obj, key) => obj && obj[key], purchase_event);
+    for (const [propertyName, targetValue] of Object.entries(criteria.matchValue)) {
+        const value = findProperty(purchase_event, propertyName);
+        debugLog(`Checking match for property: ${propertyName}, Target value: ${targetValue}, Found value: ${value}`);
         if (value === undefined || value !== targetValue) {
-            debugLog(`Property ${prop} does not match value ${targetValue}. Value: ${value}`);
-            return false;
+            debugLog(`Property ${propertyName} does not match value ${targetValue}. Value: ${value}`);
+            allCriteriaMet = false;
         }
     }
 
-    return true;
+    return allCriteriaMet;
 }
 
 async function postTransaction(convert_attributes_str, purchase_event, purchase_goalid) {
@@ -58,6 +81,8 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
 
         if (convert_attributes && purchase_event) {
             // Apply the filtering criteria if enabled
+            var purchase_event_str = JSON.stringify(purchase_event);
+            debugLog(`Purchase Event: ${purchase_event_str}`);
             if (ENABLE_PROPERTY_FILTERING && !checkCriteria(purchase_event, filterCriteria)) {
                 debugLog("Transaction filtered out based on criteria:", filterCriteria);
                 return;
@@ -67,6 +92,8 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
 
             let transactionAmount = parseFloat(purchase_event.data.checkout.totalPrice.amount);
 
+            debugLog(`Transaction amount: ${transactionAmount}, Min order value: ${convert_attributes.min_order_value}, Max order value: ${convert_attributes.max_order_value}`);
+            
             if (transactionAmount >= convert_attributes.min_order_value && transactionAmount <= convert_attributes.max_order_value) {
 
                 if (convert_attributes.conversion_rate && convert_attributes.conversion_rate !== 1) {
