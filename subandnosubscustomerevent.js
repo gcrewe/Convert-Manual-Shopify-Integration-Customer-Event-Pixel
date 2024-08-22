@@ -1,7 +1,9 @@
 const DEBUG = true; // Set to false to disable debug logs
 const ENABLE_PROPERTY_FILTERING = true; // Set to false to disable property filtering
 
-const purchase_goalid = '100136097';
+const subscriptionGoalId = 'subscription_goal_id'; // Replace with the actual goal ID for subscriptions
+const nonSubscriptionGoalId = 'non_subscription_goal_id'; // Replace with the actual goal ID for non-subscriptions
+
 const addToCart_goalid = '100134910';
 const checkoutStarted_goalid = '100132287';
 
@@ -50,7 +52,7 @@ function checkCriteria(purchase_event, criteria) {
     return true;
 }
 
-async function postTransaction(convert_attributes_str, purchase_event, purchase_goalid) {
+async function postTransaction(convert_attributes_str, purchase_event, subGoalId, nonSubGoalId) {
     debugLog("Starting postTransaction function.");
 
     try {
@@ -75,6 +77,8 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
                 }
 
                 const transactionId = purchase_event.data.checkout.order.id;
+                const isSubscription = purchase_event.data.lineItems.some(item => item.isSubscription);
+                const goalId = isSubscription ? subGoalId : nonSubGoalId;
 
                 const post = {
                     'cid': convert_attributes.cid,
@@ -85,7 +89,7 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
                     'tid': transactionId,
                     'ev': [{
                         'evt': 'tr',
-                        'goals': [purchase_goalid],
+                        'goals': [goalId],
                         'exps': convert_attributes.exps,
                         'vars': convert_attributes.vars,
                         'r': transactionAmount,
@@ -194,7 +198,7 @@ analytics.subscribe("checkout_completed", async (event) => {
     try {
         const result = await browser.localStorage.getItem('convert_attributes');
         await postConversion(result, purchase_goalid);
-        await postTransaction(result, event, purchase_goalid);
+        await postTransaction(result, event, subscriptionGoalId, nonSubscriptionGoalId);
     } catch (error) {
         console.error('Error in checkout_completed promise chain:', error);
     }
