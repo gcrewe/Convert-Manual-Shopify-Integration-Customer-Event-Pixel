@@ -30,7 +30,7 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
 
             let transactionAmount = parseFloat(purchase_event.data.checkout.totalPrice.amount);
 
-            if (transactionAmount >= convert_attributes.min_order_value && transactionAmount <= convert_attributes.max_order_value){
+            if (transactionAmount >= convert_attributes.min_order_value && transactionAmount <= convert_attributes.max_order_value) {
 
                 if (convert_attributes.conversion_rate && convert_attributes.conversion_rate !== 1) {
                     transactionAmount *= convert_attributes.conversion_rate;
@@ -84,6 +84,8 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
                 } catch (fetchError) {
                     console.error('Convert Shopify Integration: Error in fetch request:', fetchError);
                 }
+            } else {
+                debugLog("Convert Shopify Integration: Transaction filtered out due to project outlier settings. Amount:", transactionAmount);
             }
         } else {
             console.error("Convert Shopify Integration: Invalid or missing convert_attributes or purchase_event.");
