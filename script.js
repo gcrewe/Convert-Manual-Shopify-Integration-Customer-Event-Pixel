@@ -1,6 +1,8 @@
-purchase_goalid = '100136097';
-addToCart_goalid = '100134910';
-checkoutStarted_goalid = '100132287';
+const DEBUG = true; // Set to false to disable debug logs
+
+const purchase_goalid = '100136097';
+const addToCart_goalid = '100134910';
+const checkoutStarted_goalid = '100132287';
 
 function isValidJSON(data) {
     try {
@@ -11,14 +13,20 @@ function isValidJSON(data) {
     return true;
 }
 
+function debugLog(message, ...optionalParams) {
+    if (DEBUG) {
+        console.log(message, ...optionalParams);
+    }
+}
+
 async function postTransaction(convert_attributes_str, purchase_event, purchase_goalid) {
-    console.log("Convert Shopify Integration: Starting postTransaction function.");
+    debugLog("Convert Shopify Integration: Starting postTransaction function.");
 
     try {
         var convert_attributes = JSON.parse(convert_attributes_str);
 
         if (convert_attributes && purchase_event) {
-            console.log("Convert Shopify Integration: Building POST data for transaction.");
+            debugLog("Convert Shopify Integration: Building POST data for transaction.");
 
             let transactionAmount = parseFloat(purchase_event.data.checkout.totalPrice.amount);
 
@@ -26,7 +34,7 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
 
                 if (convert_attributes.conversion_rate && convert_attributes.conversion_rate !== 1) {
                     transactionAmount *= convert_attributes.conversion_rate;
-                    console.log(`Convert Shopify Integration: Transaction amount adjusted by conversion rate (${convert_attributes.conversion_rate}): ${transactionAmount}`);
+                    debugLog(`Convert Shopify Integration: Transaction amount adjusted by conversion rate (${convert_attributes.conversion_rate}): ${transactionAmount}`);
                 }
 
                 const transactionId = purchase_event.data.checkout.order.id;
@@ -56,39 +64,43 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
 
                 const beaconUrl = `https://${convert_attributes.pid}.metrics.convertexperiments.com/track`;
 
-                const response = await fetch(beaconUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: data
-                });
+                try {
+                    const response = await fetch(beaconUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: data
+                    });
 
-                if (!response.ok) {
-                    throw new Error('Convert Shopify Integration: Network response was not ok');
+                    if (!response.ok) {
+                        throw new Error('Convert Shopify Integration: Network response was not ok');
+                    }
+
+                    const result = await response.json();
+                    debugLog("Convert Shopify Integration: fetch result:", result);
+                    debugLog("Convert Shopify Integration: transactionID: " + transactionId);
+                    debugLog("Convert Shopify Integration: purchase_event: " + JSON.stringify(purchase_event.data));
+                } catch (fetchError) {
+                    console.error('Convert Shopify Integration: Error in fetch request:', fetchError);
                 }
-
-                const result = await response.json();
-                console.log("Convert Shopify Integration: fetch result:", result);
-                console.log("Convert Shopify Integration: transactionID: " + transactionId);
-                console.dir("Convert Shopify Integration: purchase_event: " + JSON.stringify(purchase_event.data));
             }
         } else {
             console.error("Convert Shopify Integration: Invalid or missing convert_attributes or purchase_event.");
         }
-    } catch (error) {
-        console.error('Convert Shopify Integration: Error in postTransaction:', error);
+    } catch (parseError) {
+        console.error('Convert Shopify Integration: Error parsing JSON in postTransaction:', parseError);
     }
 }
 
 async function postConversion(convert_attributes_str, goalid) {
-    console.log('Convert Shopify Integration: Starting postConversion function with goal id:', goalid);
+    debugLog('Convert Shopify Integration: Starting postConversion function with goal id:', goalid);
 
     try {
         var convert_attributes = JSON.parse(convert_attributes_str);
 
         if (convert_attributes) {
-            console.log("Convert Shopify Integration: Building POST data for goal hit.");
+            debugLog("Convert Shopify Integration: Building POST data for goal hit.");
             const post = {
                 'cid': convert_attributes.cid,
                 'pid': convert_attributes.pid,
@@ -111,30 +123,34 @@ async function postConversion(convert_attributes_str, goalid) {
 
             const beaconUrl = `https://${convert_attributes.pid}.metrics.convertexperiments.com/track`;
 
-            const response = await fetch(beaconUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: data
-            });
+            try {
+                const response = await fetch(beaconUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: data
+                });
 
-            if (!response.ok) {
-                throw new Error('Convert Shopify Integration: Network response was not ok');
+                if (!response.ok) {
+                    throw new Error('Convert Shopify Integration: Network response was not ok');
+                }
+
+                const result = await response.json();
+                debugLog("Convert Shopify Integration: fetch result:", result);
+            } catch (fetchError) {
+                console.error('Convert Shopify Integration: Error in fetch request:', fetchError);
             }
-
-            const result = await response.json();
-            console.log("Convert Shopify Integration: fetch result:", result);
         } else {
-            console.error("Convert Shopify Integration: Invalid or missing convert_attributes or purchase_event.");
+            console.error("Convert Shopify Integration: Invalid or missing convert_attributes.");
         }
-    } catch (error) {
-        console.error('Convert Shopify Integration: Error in postConversion:', error);
+    } catch (parseError) {
+        console.error('Convert Shopify Integration: Error parsing JSON in postConversion:', parseError);
     }
 }
 
 analytics.subscribe("checkout_completed", async (event) => {
-    console.log("Convert Shopify Integration: Event received for checkout_completed.");
+    debugLog("Convert Shopify Integration: Event received for checkout_completed.");
 
     try {
         const result = await browser.localStorage.getItem('convert_attributes');
@@ -146,7 +162,7 @@ analytics.subscribe("checkout_completed", async (event) => {
 });
 
 analytics.subscribe("product_added_to_cart", async (event) => {
-    console.log("Convert Shopify Integration: Event received for product_added_to_cart.");
+    debugLog("Convert Shopify Integration: Event received for product_added_to_cart.");
 
     try {
         const result = await browser.localStorage.getItem('convert_attributes');
@@ -157,7 +173,7 @@ analytics.subscribe("product_added_to_cart", async (event) => {
 });
 
 analytics.subscribe("checkout_started", async (event) => {
-    console.log("Convert Shopify Integration: Event received for checkout_started.");
+    debugLog("Convert Shopify Integration: Event received for checkout_started.");
 
     try {
         const result = await browser.localStorage.getItem('convert_attributes');
