@@ -7,10 +7,12 @@ const checkoutStarted_goalid = '100132287';
 
 // Configuration object for filtering criteria
 const filterCriteria = {
+    enabled: false, // Enable or disable criteria checking
     checkExistence: ['sku'], // List of properties that must exist
     matchValue: {
         'sku': '23026961-pink-united-states-l-diameter-7-5cm' // Exact string values to match
-    }
+    },
+    checkValue: false // Enable or disable value matching
 };
 
 function isValidJSON(data) {
@@ -48,25 +50,34 @@ function findProperty(obj, propertyName) {
 }
 
 function checkCriteria(purchase_event, criteria) {
+    if (!criteria.enabled) {
+        debugLog('Criteria checking is disabled.');
+        return true; // Bypass criteria checking
+    }
+
     let allCriteriaMet = true; // Variable to track if all criteria are met
 
     // Check for the existence of properties
-    for (const propertyName of criteria.checkExistence) {
-        const value = findProperty(purchase_event, propertyName);
-        debugLog(`Checking existence of property: ${propertyName}, Found value: ${value}`);
-        if (value === undefined) {
-            debugLog(`Property ${propertyName} does not exist.`);
-            allCriteriaMet = false;
+    if (criteria.checkExistence) {
+        for (const propertyName of criteria.checkExistence) {
+            const value = findProperty(purchase_event, propertyName);
+            debugLog(`Checking existence of property: ${propertyName}, Found value: ${value}`);
+            if (value === undefined) {
+                debugLog(`Property ${propertyName} does not exist.`);
+                allCriteriaMet = false;
+            }
         }
     }
 
-    // Check for matching value patterns
-    for (const [propertyName, targetValue] of Object.entries(criteria.matchValue)) {
-        const value = findProperty(purchase_event, propertyName);
-        debugLog(`Checking match for property: ${propertyName}, Target value: ${targetValue}, Found value: ${value}`);
-        if (value === undefined || value !== targetValue) {
-            debugLog(`Property ${propertyName} does not match value ${targetValue}. Value: ${value}`);
-            allCriteriaMet = false;
+    // Check for matching value patterns if checkValue is enabled
+    if (criteria.checkValue) {
+        for (const [propertyName, targetValue] of Object.entries(criteria.matchValue)) {
+            const value = findProperty(purchase_event, propertyName);
+            debugLog(`Checking match for property: ${propertyName}, Target value: ${targetValue}, Found value: ${value}`);
+            if (value === undefined || value !== targetValue) {
+                debugLog(`Property ${propertyName} does not match value ${targetValue}. Value: ${value}`);
+                allCriteriaMet = false;
+            }
         }
     }
 
@@ -93,7 +104,7 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
             let transactionAmount = parseFloat(purchase_event.data.checkout.totalPrice.amount);
 
             debugLog(`Transaction amount: ${transactionAmount}, Min order value: ${convert_attributes.min_order_value}, Max order value: ${convert_attributes.max_order_value}`);
-            
+
             if (transactionAmount >= convert_attributes.min_order_value && transactionAmount <= convert_attributes.max_order_value) {
 
                 if (convert_attributes.conversion_rate && convert_attributes.conversion_rate !== 1) {
