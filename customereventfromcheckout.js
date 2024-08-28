@@ -1,9 +1,7 @@
 const DEBUG = true; // Set to false to disable debug logs
 const ENABLE_PROPERTY_FILTERING = true; // Set to false to disable property filtering
 
-const purchase_goalid = '100136097';
-const addToCart_goalid = '100134910';
-const checkoutStarted_goalid = '100132287';
+const purchase_goalid = '100136097'; // Change this to your own purchase goal ID
 
 // Configuration object for filtering criteria
 const filterCriteria = {
@@ -205,7 +203,7 @@ async function postConversion(purchase_event, goalid) {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
-                    },
+                        },
                     body: data
                 });
 
@@ -234,25 +232,5 @@ analytics.subscribe("checkout_completed", async (event) => {
         await postTransaction(event, purchase_goalid);
     } catch (error) {
         console.error('Error in checkout_completed promise chain:', error);
-    }
-});
-
-analytics.subscribe("product_added_to_cart", async (event) => {
-    debugLog("Event received for product_added_to_cart.");
-
-    try {
-        await postConversion(event, addToCart_goalid);
-    } catch (error) {
-        console.error('Error in product_added_to_cart:', error);
-    }
-});
-
-analytics.subscribe("checkout_started", async (event) => {
-    debugLog("Event received for checkout_started.");
-
-    try {
-        await postConversion(event, checkoutStarted_goalid);
-    } catch (error) {
-        console.error('Error in checkout_started:', error);
     }
 });
