@@ -155,6 +155,10 @@ async function postTransaction(convert_attributes_str, purchase_event) {
 // Event subscriptions using an analytics platform
 analytics.subscribe("checkout_completed", async (event) => {
     debugLog("Event received for checkout_completed.");
-    const result = await browser.localStorage.getItem('convert_attributes');
+    let result = await browser.localStorage.getItem('convert_attributes');
+    if (!result) {
+        result = findProperty(event.data.checkout, 'custom_attributes');
+        result = JSON.stringify(result);
+    }
     await postTransaction(result, event);
 });

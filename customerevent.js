@@ -230,7 +230,11 @@ analytics.subscribe("checkout_completed", async (event) => {
     debugLog("Event received for checkout_completed.");
 
     try {
-        const result = await browser.localStorage.getItem('convert_attributes');
+        let result = await browser.localStorage.getItem('convert_attributes');
+        if (!result) {
+            result = findProperty(event.data.checkout, 'custom_attributes');
+            result = JSON.stringify(result);
+        }
         await postConversion(result, purchase_goalid);
         await postTransaction(result, event, purchase_goalid);
     } catch (error) {
@@ -242,7 +246,11 @@ analytics.subscribe("product_added_to_cart", async (event) => {
     debugLog("Event received for product_added_to_cart.");
 
     try {
-        const result = await browser.localStorage.getItem('convert_attributes');
+        let result = await browser.localStorage.getItem('convert_attributes');
+        if (!result) {
+            result = findProperty(event.data.checkout, 'custom_attributes');
+            result = JSON.stringify(result);
+        }
         await postConversion(result, addToCart_goalid);
     } catch (error) {
         console.error('Error retrieving convert_attributes for product_added_to_cart:', error);
@@ -253,7 +261,11 @@ analytics.subscribe("checkout_started", async (event) => {
     debugLog("Event received for checkout_started.");
 
     try {
-        const result = await browser.localStorage.getItem('convert_attributes');
+        let result = await browser.localStorage.getItem('convert_attributes');
+        if (!result) {
+            result = findProperty(event.data.checkout, 'custom_attributes');
+            result = JSON.stringify(result);
+        }
         await postConversion(result, checkoutStarted_goalid);
     } catch (error) {
         console.error('Error retrieving convert_attributes for checkout_started:', error);
