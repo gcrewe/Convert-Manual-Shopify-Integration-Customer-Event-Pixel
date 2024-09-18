@@ -136,6 +136,11 @@ async function postTransaction(convert_attributes_str, purchase_event) {
         'vars': convert_attributes.vars,
         'r': transactionAmount,
         'prc': purchase_event.data.checkout.lineItems.length
+      },{
+        'evt': 'hitGoal',
+        'goals': goalIds,  // Include all relevant goals
+        'exps': convert_attributes.exps,
+        'vars': convert_attributes.vars
       }]
     };
 
