@@ -96,9 +96,6 @@ async function postTransaction(convert_attributes_str, purchase_event) {
       } else {
         goalIds.push(nonSubscriptionGoalId);
       }
-    } else {
-      goalIds.push(nonSubscriptionGoalId);
-    }
 
     debugLog("Goal IDs to be tracked:", goalIds);
 
