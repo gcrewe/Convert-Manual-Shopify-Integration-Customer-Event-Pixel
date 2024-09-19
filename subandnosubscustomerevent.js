@@ -126,19 +126,22 @@ async function postTransaction(convert_attributes_str, purchase_event) {
       's': 'shopify',
       'vid': convert_attributes.vid,
       'tid': transactionId,
-      'ev': [{
+      'ev': [
+        {
+          'evt': 'hitGoal',
+          'goals': goalIds,  // Include all relevant goals
+          'exps': convert_attributes.exps,
+          'vars': convert_attributes.vars
+        },
+        {
         'evt': 'tr',
         'goals': goalIds,  // Include all relevant goals
         'exps': convert_attributes.exps,
         'vars': convert_attributes.vars,
         'r': transactionAmount,
         'prc': purchase_event.data.checkout.lineItems.length
-      },{
-        'evt': 'hitGoal',
-        'goals': goalIds,  // Include all relevant goals
-        'exps': convert_attributes.exps,
-        'vars': convert_attributes.vars
-      }]
+        }
+      ]
     };
 
     // JSON.stringify only once, and no need to parse it again.
