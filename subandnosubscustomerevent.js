@@ -70,6 +70,68 @@ function checkCriteria(purchase_event, criteria) {
   });
 }
 
+// Function to enforce outlier limits
+function isWithinOutlierLimits(transactionAmount, min_order_value, max_order_value) {
+  return transactionAmount >= min_order_value && transactionAmount <= max_order_value;
+}
+
+// Post conversion function
+async function postConversion(convert_attributes_str, goalIds) {
+  debugLog('Starting postConversion function with goal ids:', goalIds);
+
+  try {
+    const convert_attributes = JSON.parse(convert_attributes_str);
+
+    if (convert_attributes) {
+      debugLog("Building POST data for goal hit.");
+      const post = {
+        'cid': convert_attributes.cid,
+        'pid': convert_attributes.pid,
+        'seg': convert_attributes.defaultSegments,
+        's': 'shopify',
+        'vid': convert_attributes.vid,
+        'ev': [{
+          'evt': 'hitGoal',
+          'goals': goalIds,
+          'exps': convert_attributes.exps,
+          'vars': convert_attributes.vars
+        }]
+      };
+      let data = JSON.stringify(post);
+
+      // Verify and fix JSON if necessary
+      if (!isValidJSON(data)) {
+        data = JSON.stringify(JSON.parse(data));
+      }
+
+      const beaconUrl = `https://${convert_attributes.pid}.metrics.convertexperiments.com/track`;
+
+      try {
+        const response = await fetch(beaconUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: data
+        });
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        const result = await response.json();
+        debugLog("fetch result:", result);
+      } catch (fetchError) {
+        console.error('Error in fetch request:', fetchError);
+      }
+    } else {
+      console.error("Invalid or missing convert_attributes.");
+    }
+  } catch (parseError) {
+    console.error('Error parsing JSON in postConversion:', parseError);
+  }
+}
+
 // Function to handle the transaction posting logic
 async function postTransaction(convert_attributes_str, purchase_event) {
   debugLog("Starting postTransaction function.");
@@ -88,36 +150,11 @@ async function postTransaction(convert_attributes_str, purchase_event) {
       return;
     }
 
-    // Determine if the purchase event matches subscription or non-subscription criteria
-    const goalIds = [purchaseGoalId];  // Start with the general purchase goal
-    if (ENABLE_PROPERTY_FILTERING) {
-      if (checkCriteria(purchase_event, { checkExistence: ['sellingPlanAllocation'] })) { // Adjusted property name to check variant SKU
-        goalIds.push(subscriptionGoalId); // Assuming subscription has SKU, adjust as necessary
-      } else {
-        goalIds.push(nonSubscriptionGoalId);
-      }
-
+    // Goal IDs for tracking
+    const goalIds = [purchaseGoalId];
     debugLog("Goal IDs to be tracked:", goalIds);
 
     debugLog("Building POST data for transaction.");
-
-    let transactionAmount = parseFloat(purchase_event.data.checkout.totalPrice.amount);
-    if (isNaN(transactionAmount)) {
-      throw new Error("Invalid transaction amount.");
-    }
-
-    debugLog(`Transaction amount: ${transactionAmount}, Min order value: ${convert_attributes.min_order_value}, Max order value: ${convert_attributes.max_order_value}`);
-
-    if (transactionAmount < convert_attributes.min_order_value || transactionAmount > convert_attributes.max_order_value) {
-      debugLog("Transaction amount filtered out. Amount:", transactionAmount);
-      return;
-    }
-
-    if (convert_attributes.conversion_rate && convert_attributes.conversion_rate !== 1) {
-      transactionAmount *= convert_attributes.conversion_rate;
-      debugLog(`Transaction amount adjusted by conversion rate (${convert_attributes.conversion_rate}): ${transactionAmount}`);
-    }
-
     const transactionId = purchase_event.data.checkout.order.id;
     const post = {
       'cid': convert_attributes.cid,
@@ -128,25 +165,17 @@ async function postTransaction(convert_attributes_str, purchase_event) {
       'tid': transactionId,
       'ev': [
         {
-          'evt': 'hitGoal',
-          'goals': goalIds,  // Include all relevant goals
-          'exps': convert_attributes.exps,
-          'vars': convert_attributes.vars
-        },
-        {
         'evt': 'tr',
         'goals': goalIds,  // Include all relevant goals
+        'vars': convert_attributes.vars,        
         'exps': convert_attributes.exps,
-        'vars': convert_attributes.vars,
-        'r': transactionAmount,
+        'r': parseFloat(purchase_event.data.checkout.totalPrice.amount),
         'prc': purchase_event.data.checkout.lineItems.length
         }
       ]
     };
 
-    // JSON.stringify only once, and no need to parse it again.
     const data = JSON.stringify(post);
-
     const beaconUrl = `https://${convert_attributes.pid}.metrics.convertexperiments.com/track`;
 
     try {
@@ -174,26 +203,47 @@ async function postTransaction(convert_attributes_str, purchase_event) {
   }
 }
 
-// Event subscriptions using an analytics platform
+// Event subscription for checkout_completed (fires both conversion and transaction)
 analytics.subscribe("checkout_completed", async (event) => {
   debugLog("Event received for checkout_completed.");
+
   try {
+    const purchase_event = event;  // Assuming event is structured like purchase_event
     let convert_attributes_str = await browser.localStorage.getItem('convert_attributes');
 
+    // If not found in localStorage, retrieve from event data
     if (!convert_attributes_str) {
-      debugLog("convert_attributes not found in localStorage, attempting to retrieve from event data...");
       convert_attributes_str = findProperty(event.data.checkout, 'customAttributes');
-      if (!convert_attributes_str) {
-        debugLog("convert_attributes not found in event.data.checkout.customAttributes");
-      }
+      debugLog("convert_attributes retrieved from customAttributes in event:", convert_attributes_str);
       convert_attributes_str = JSON.stringify(convert_attributes_str);
     }
 
     if (!convert_attributes_str || !isValidJSON(convert_attributes_str)) {
-      throw new Error("Invalid or missing convert_attributes.");
+      debugLog("Invalid or missing convert_attributes.");
+      return;
     }
 
-    await postTransaction(convert_attributes_str, event);
+    const convert_attributes = JSON.parse(convert_attributes_str);
+
+    // Outlier check for transaction amount
+    let transactionAmount = parseFloat(purchase_event.data.checkout.totalPrice.amount);
+    if (isNaN(transactionAmount) || !isWithinOutlierLimits(transactionAmount, convert_attributes.min_order_value, convert_attributes.max_order_value)) {
+      debugLog("Transaction amount out of limits:", transactionAmount);
+      return;  // Do not report anything if transaction is outside limits
+    }
+
+    // Determine the correct goals based on criteria
+    let goalIds = [purchaseGoalId];
+    if (ENABLE_PROPERTY_FILTERING && checkCriteria(purchase_event, { checkExistence: ['sellingPlanAllocation'] })) {
+      goalIds.push(subscriptionGoalId);
+    } else {
+      goalIds.push(nonSubscriptionGoalId);
+    }
+
+    // Submit both conversion and transaction
+    await postConversion(convert_attributes_str, goalIds);
+    await postTransaction(convert_attributes_str, purchase_event);
+
   } catch (error) {
     console.error('Error in checkout_completed event handler:', error);
   }
