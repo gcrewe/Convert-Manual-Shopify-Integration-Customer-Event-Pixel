@@ -1,5 +1,5 @@
 const DEBUG = true; // Set to false to disable debug logs
-const ENABLE_PROPERTY_FILTERING = true; // Set to false to disable property filtering
+const ENABLE_PROPERTY_FILTERING = false; // Set to false to disable property filtering
 
 const purchase_goalid = '100136097';
 const addToCart_goalid = '100134910';
