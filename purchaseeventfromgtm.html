@@ -1,0 +1,194 @@
+<script>
+(function() {
+    // === Configurable Variables ===
+    var DEBUG = true; // Set to false to disable debug logs
+
+    // Goal ID (used by both postConversion and postTransaction)
+    var purchase_goalid = 'XXXXXXXXX'; // Replace 'XXXXXXXXX' with your Purchase Goal ID or use GTM variable {{PurchaseGoalId}}
+
+    // Variables from GTM (ensure these GTM variables are set up in your GTM container)
+    var transactionAmount = parseFloat({{OrderAmount}}); // Replace {{OrderAmount}} with your GTM variable for transaction amount
+    var transactionId = '{{TransactionId}}';             // Replace {{TransactionId}} with your GTM variable for transaction ID
+    var productCount = parseInt({{ProductCount}});       // Replace {{ProductCount}} with your GTM variable for product count
+
+    // === End of Configurable Variables ===
+
+    function debugLog(message, ...optionalParams) {
+        if (DEBUG) {
+            console.log('Convert Shopify Integration:', message, ...optionalParams);
+        }
+    }
+
+    function isValidJSON(data) {
+        try {
+            JSON.parse(data);
+        } catch (e) {
+            return false;
+        }
+        return true;
+    }
+
+    function postTransaction(convert_attributes) {
+        debugLog("Starting postTransaction function.");
+
+        try {
+            if (convert_attributes) {
+                debugLog("Preparing data for transaction.");
+
+                // Validate transactionAmount and productCount
+                transactionAmount = isNaN(transactionAmount) ? 0 : transactionAmount;
+                productCount = isNaN(productCount) ? 0 : productCount;
+
+                debugLog(`Transaction amount: ${transactionAmount}, Min order value: ${convert_attributes.min_order_value}, Max order value: ${convert_attributes.max_order_value}`);
+
+                if (transactionAmount >= convert_attributes.min_order_value && transactionAmount <= convert_attributes.max_order_value) {
+                    if (convert_attributes.conversion_rate && convert_attributes.conversion_rate !== 1) {
+                        transactionAmount *= convert_attributes.conversion_rate;
+                        debugLog(`Transaction amount adjusted by conversion rate (${convert_attributes.conversion_rate}): ${transactionAmount}`);
+                    }
+
+                    var post = {
+                        cid: convert_attributes.cid,
+                        pid: convert_attributes.pid,
+                        seg: convert_attributes.defaultSegments,
+                        s: 'shopify',
+                        vid: convert_attributes.vid,
+                        // Uncomment the following line if transactionId is available
+                        tid: transactionId,
+                        ev: [{
+                            evt: 'tr',
+                            goals: [purchase_goalid],
+                            exps: convert_attributes.exps,
+                            vars: convert_attributes.vars,
+                            r: transactionAmount,
+                            prc: productCount
+                        }]
+                    };
+
+                    // If transactionId is not available, comment out or delete the following lines
+                    if (!transactionId || transactionId === '' || transactionId === '{{TransactionId}}') {
+                        delete post.tid; // Remove the 'tid' property if transactionId is not available
+                    }
+
+                    var data = JSON.stringify(post);
+
+                    // Verify and fix JSON if necessary
+                    if (!isValidJSON(data)) {
+                        data = JSON.stringify(JSON.parse(data));
+                    }
+
+                    var beaconUrl = 'https://' + convert_attributes.pid + '.metrics.convertexperiments.com/track';
+
+                    fetch(beaconUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: data,
+                        keepalive: true // Ensure the request completes even if the page unloads
+                    }).then(function(response) {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    }).then(function(result) {
+                        debugLog("Fetch result:", result);
+                        debugLog("Transaction ID: " + (transactionId || 'N/A'));
+                    }).catch(function(fetchError) {
+                        console.error('Error in fetch request:', fetchError);
+                    });
+
+                } else {
+                    debugLog("Transaction amount filtered out. Amount:", transactionAmount);
+                }
+            } else {
+                console.error("Invalid or missing convert_attributes.");
+            }
+        } catch (error) {
+            console.error('Error in postTransaction:', error);
+        }
+    }
+
+    function postConversion(convert_attributes) {
+        debugLog('Starting postConversion function with goal id:', purchase_goalid);
+
+        try {
+            if (convert_attributes) {
+                debugLog("Preparing data for goal hit.");
+
+                var post = {
+                    cid: convert_attributes.cid,
+                    pid: convert_attributes.pid,
+                    seg: convert_attributes.defaultSegments,
+                    s: 'shopify',
+                    vid: convert_attributes.vid,
+                    ev: [{
+                        evt: 'hitGoal',
+                        goals: [purchase_goalid],
+                        exps: convert_attributes.exps,
+                        vars: convert_attributes.vars
+                    }]
+                };
+
+                var data = JSON.stringify(post);
+
+                // Verify and fix JSON if necessary
+                if (!isValidJSON(data)) {
+                    data = JSON.stringify(JSON.parse(data));
+                }
+
+                var beaconUrl = 'https://' + convert_attributes.pid + '.metrics.convertexperiments.com/track';
+
+                fetch(beaconUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: data,
+                    keepalive: true // Ensure the request completes even if the page unloads
+                }).then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                }).then(function(result) {
+                    debugLog("Fetch result:", result);
+                }).catch(function(fetchError) {
+                    console.error('Error in fetch request:', fetchError);
+                });
+            } else {
+                console.error("Invalid or missing convert_attributes.");
+            }
+        } catch (error) {
+            console.error('Error in postConversion:', error);
+        }
+    }
+
+    // Main code execution
+    (function() {
+        debugLog("Starting main execution.");
+
+        // Retrieve convert_attributes from localStorage
+        var convert_attributes_str = localStorage.getItem('convert_attributes');
+        if (!convert_attributes_str) {
+            console.error("convert_attributes not found in localStorage.");
+            return;
+        }
+
+        try {
+            var convert_attributes = JSON.parse(convert_attributes_str);
+        } catch (parseError) {
+            console.error("Error parsing convert_attributes:", parseError);
+            return;
+        }
+
+        // Call postConversion
+        postConversion(convert_attributes);
+
+        // Call postTransaction
+        postTransaction(convert_attributes);
+
+    })();
+
+})();
+</script>
