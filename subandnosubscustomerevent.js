@@ -133,7 +133,7 @@ async function postConversion(convert_attributes_str, goalIds) {
 }
 
 // Function to handle the transaction posting logic
-async function postTransaction(convert_attributes_str, purchase_event) {
+async function postTransaction(convert_attributes_str, purchase_event, goalIdsToReport) {
   debugLog("Starting postTransaction function.");
 
   try {
@@ -151,7 +151,7 @@ async function postTransaction(convert_attributes_str, purchase_event) {
     }
 
     // Goal IDs for tracking
-    const goalIds = [purchaseGoalId];
+    const goalIds = goalIdsToReport;
     debugLog("Goal IDs to be tracked:", goalIds);
 
     debugLog("Building POST data for transaction.");
@@ -242,7 +242,7 @@ analytics.subscribe("checkout_completed", async (event) => {
 
     // Submit both conversion and transaction
     await postConversion(convert_attributes_str, goalIds);
-    await postTransaction(convert_attributes_str, purchase_event);
+    await postTransaction(convert_attributes_str, purchase_event, goalIds);
 
   } catch (error) {
     console.error('Error in checkout_completed event handler:', error);
