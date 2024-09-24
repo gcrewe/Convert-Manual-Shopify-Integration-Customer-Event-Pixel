@@ -234,10 +234,18 @@ analytics.subscribe("checkout_completed", async (event) => {
 
     // Determine the correct goals based on criteria
     let goalIds = [purchaseGoalId];
-    if (ENABLE_PROPERTY_FILTERING && checkCriteria(purchase_event, { checkExistence: ['sellingPlanAllocation'] })) {
-      goalIds.push(subscriptionGoalId);
+
+    // Ensure that every purchase is attributed to either subscriptionGoalId or nonSubscriptionGoalId
+    if (ENABLE_PROPERTY_FILTERING) {
+        // Check if the purchase event qualifies as a subscription
+        if (checkCriteria(purchase_event, { checkExistence: ['sellingPlanAllocation'] })) {
+            goalIds.push(subscriptionGoalId);
+        } else {
+            goalIds.push(nonSubscriptionGoalId);
+        }
     } else {
-      goalIds.push(nonSubscriptionGoalId);
+        // If property filtering is disabled, consider all purchases as non-subscription
+        goalIds.push(nonSubscriptionGoalId);
     }
 
     // Submit both conversion and transaction
