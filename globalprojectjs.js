@@ -92,21 +92,16 @@ window._conv_q.push({
                 exps: exp_list,
                 defaultSegments: alignSegmentsToFirstFormat(convert.getDefaultSegments()),
                 conversionRate: 1, // Default value, modify as necessary
-                presentmentCurrency: "USD", // Default currency, modify as necessary
-                currencySymbol: "$", // Default symbol, modify as necessary
                 max_order_value: convert.data.project.settings.max_order_value,
                 min_order_value: convert.data.project.settings.min_order_value,
             };
 
             if (enableCurrencyFunctionality && typeof Shopify !== 'undefined' && Shopify.currency && typeof Currency !== 'undefined') {
-                let baseCurrency = Shopify.currency.active;
-                let presentmentCurrency = Shopify.currency.current;
-                let conversionRate = Currency.convert(1, baseCurrency, presentmentCurrency);
+
+                let conversionRate = Shopify.currency.active;
 
                 if (!isNaN(conversionRate) && conversionRate !== 0) {
                     convert_attributes.conversionRate = conversionRate;
-                    convert_attributes.presentmentCurrency = presentmentCurrency;
-                    convert_attributes.currencySymbol = Currency.symbol;
                 } else {
                     console.error('Invalid conversion rate. Not adding currency information.');
                 }

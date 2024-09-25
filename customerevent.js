@@ -102,15 +102,25 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
             debugLog("Building POST data for transaction.");
 
             let transactionAmount = parseFloat(purchase_event.data.checkout.totalPrice.amount);
+            const originalTransactionAmount = transactionAmount;
 
-            debugLog(`Transaction amount: ${transactionAmount}, Min order value: ${convert_attributes.min_order_value}, Max order value: ${convert_attributes.max_order_value}`);
+            debugLog(`Original Transaction amount: ${originalTransactionAmount} ${purchase_event.data.checkout.totalPrice.currencyCode}`);
+            debugLog(`Min order value: ${convert_attributes.min_order_value}, Max order value: ${convert_attributes.max_order_value}`);
 
             if (transactionAmount >= convert_attributes.min_order_value && transactionAmount <= convert_attributes.max_order_value) {
 
-                if (convert_attributes.conversion_rate && convert_attributes.conversion_rate !== 1) {
-                    transactionAmount *= convert_attributes.conversion_rate;
-                    debugLog(`Transaction amount adjusted by conversion rate (${convert_attributes.conversion_rate}): ${transactionAmount}`);
+                if (convert_attributes.conversionRate && convert_attributes.conversionRate !== 1) {
+                    debugLog(
+                        `Applying conversion rate: ${convert_attributes.conversionRate}. ` +
+                        `Original amount: ${transactionAmount}`
+                    );
+                    transactionAmount *= convert_attributes.conversionRate;
+                    debugLog(
+                        `Adjusted Transaction amount after conversion: ${transactionAmount}`
+                    );
                 }
+
+                debugLog(`Performing transaction with amount: ${transactionAmount} using conversion rate: ${convert_attributes.conversionRate}`);
 
                 const transactionId = purchase_event.data.checkout.order.id;
 
