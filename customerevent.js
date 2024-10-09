@@ -87,8 +87,23 @@ function checkCriteria(purchase_event, criteria) {
 async function postTransaction(convert_attributes_str, purchase_event, purchase_goalid) {
     debugLog("Starting postTransaction function.");
 
+    if (!convert_attributes_str) {
+        console.error('Error: convert_attributes_str is empty or null');
+        return; // Exit the function early
+    }
+
     try {
         var convert_attributes = JSON.parse(convert_attributes_str);
+
+        if (!convert_attributes || Object.keys(convert_attributes).length === 0) {
+            console.error('Error: convert_attributes is empty or invalid after parsing');
+            return; // Exit the function early
+        }
+
+        if (!purchase_event) {
+            console.error('Error: purchase_event is null or undefined');
+            return; // Exit the function early
+        }
 
         if (convert_attributes && purchase_event) {
             // Apply the filtering criteria if enabled
@@ -183,8 +198,18 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
 async function postConversion(convert_attributes_str, goalid) {
     debugLog('Starting postConversion function with goal id:', goalid);
 
+    if (!convert_attributes_str) {
+        console.error('Error: convert_attributes_str is empty or null');
+        return; // Exit the function early
+    }
+
     try {
         var convert_attributes = JSON.parse(convert_attributes_str);
+
+        if (!convert_attributes || Object.keys(convert_attributes).length === 0) {
+            console.error('Error: convert_attributes is empty or invalid after parsing');
+            return; // Exit the function early
+        }
 
         if (convert_attributes) {
             debugLog("Building POST data for goal hit.");
@@ -242,7 +267,12 @@ analytics.subscribe("checkout_completed", async (event) => {
     try {
         let result = await browser.localStorage.getItem('convert_attributes');
         if (!result) {
+            debugLog("convert_attributes not found in localStorage, checking custom_attributes");
             result = findProperty(event.data.checkout, 'custom_attributes');
+            if (!result) {
+                console.error("Error: Unable to find convert_attributes in localStorage or custom_attributes");
+                return; // Exit early if no data is found
+            }
             result = JSON.stringify(result);
         }
         await postConversion(result, purchase_goalid);
@@ -258,7 +288,12 @@ analytics.subscribe("product_added_to_cart", async (event) => {
     try {
         let result = await browser.localStorage.getItem('convert_attributes');
         if (!result) {
+            debugLog("convert_attributes not found in localStorage, checking custom_attributes");
             result = findProperty(event.data.checkout, 'custom_attributes');
+            if (!result) {
+                console.error("Error: Unable to find convert_attributes in localStorage or custom_attributes");
+                return; // Exit early if no data is found
+            }
             result = JSON.stringify(result);
         }
         await postConversion(result, addToCart_goalid);
@@ -273,7 +308,12 @@ analytics.subscribe("checkout_started", async (event) => {
     try {
         let result = await browser.localStorage.getItem('convert_attributes');
         if (!result) {
+            debugLog("convert_attributes not found in localStorage, checking custom_attributes");
             result = findProperty(event.data.checkout, 'custom_attributes');
+            if (!result) {
+                console.error("Error: Unable to find convert_attributes in localStorage or custom_attributes");
+                return; // Exit early if no data is found
+            }
             result = JSON.stringify(result);
         }
         await postConversion(result, checkoutStarted_goalid);
