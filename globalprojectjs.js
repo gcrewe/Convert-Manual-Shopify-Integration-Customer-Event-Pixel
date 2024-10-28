@@ -1,5 +1,10 @@
-console.log('URL:' + location.href);
-let enableCurrencyFunctionality = false;
+let enableCurrencyFunctionality = false; // Flag to enable Currency Conversion
+let storeInCookie = true; // Flag to control storage method
+
+// Function to set a cookie using convert.setCookie
+function setCookie(name, value, days) {
+    convert.setCookie(name, value, { expires: days });
+}
 
 // Ensuring _conv_q is initialized
 window._conv_q = window._conv_q || [];
@@ -107,8 +112,14 @@ window._conv_q.push({
                 }
             }
 
-            localStorage.setItem('convert_attributes', JSON.stringify(convert_attributes));
-            console.log('convert_attributes initialized:', convert_attributes);
+            // Store convert_attributes based on the storeInCookie flag
+            if (storeInCookie) {
+                setCookie('convert_attributes', JSON.stringify(convert_attributes), 7); // Store for 7 days
+                console.log('convert_attributes stored in cookie:', convert_attributes);
+            } else {
+                localStorage.setItem('convert_attributes', JSON.stringify(convert_attributes));
+                console.log('convert_attributes stored in localStorage:', convert_attributes);
+            }
         }
     }
 });
