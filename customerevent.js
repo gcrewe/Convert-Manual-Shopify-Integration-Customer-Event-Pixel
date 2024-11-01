@@ -2,6 +2,7 @@ const DEBUG = true; // Set to false to disable debug logs
 const ENABLE_PROPERTY_FILTERING = false; // Set to false to disable property filtering
 
 const purchase_goalid = '100136097';
+const addToCart_goalid = '100136098';
 const checkoutStarted_goalid = '100132287';
 
 // Configuration object for filtering criteria
@@ -300,3 +301,18 @@ analytics.subscribe("checkout_started", async (event) => {
         console.error('Error retrieving convert_attributes for checkout_started:', error);
     }
 });
+
+analytics.subscribe("product_added_to_cart", async (event) => {
+    debugLog("Event received for checkout_started.");
+
+    try {
+        let result = getConvertAttributes(event);
+        if (!result) {
+            console.error("Error: Unable to find convert_attributes in localStorage, cookie, or event data");
+            return; // Exit early if no data is found
+        }
+        await postConversion(result, addToCart_goalid);
+    } catch (error) {
+        console.error('Error retrieving convert_attributes for checkout_started:', error);
+    }
+}); 
