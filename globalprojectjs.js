@@ -44,6 +44,9 @@ window._conv_q.push({
                     if (varID && !exp_list.includes(expID)) {
                         exp_list.push(expID);
                         variation_list.push(varID);
+                        analytics.track('Experiment Viewed', {
+                          exp: expID + ':' + varID
+                        });
                         console.log(
                             'Adding experiment:',
                             expID,
@@ -52,6 +55,9 @@ window._conv_q.push({
                             'from',
                             isHistorical ? 'historical data' : 'current data'
                         );
+                        analytics.track('Experiment Viewed', {
+                          exp: expID + ':' + varID
+                        });
                     }
                 }
             }
