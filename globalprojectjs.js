@@ -44,9 +44,11 @@ window._conv_q.push({
                     if (varID && !exp_list.includes(expID)) {
                         exp_list.push(expID);
                         variation_list.push(varID);
-                        analytics.track('Experiment Viewed', {
-                          exp: expID + ':' + varID
+                        /* Only remove if Shopify Library available on Shopify Site
+                            analytics.track('Experiment Viewed', {
+                            exp: expID + ':' + varID
                         });
+                        */
                         console.log(
                             'Adding experiment:',
                             expID,
