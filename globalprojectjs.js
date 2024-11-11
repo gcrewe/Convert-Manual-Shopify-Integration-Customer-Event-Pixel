@@ -27,42 +27,43 @@ window._conv_q.push({
             let exp_list = [];
             let variation_list = [];
 
-            // Function to process experiences from currentData and historicalData
-            function processExperiences(sourceData, allData, isHistorical = false) {
-                for (let expID in sourceData) {
-                    // Retrieve the type from main data structure to decide exclusion
-                    let type = allData.experiences[expID]?.type;
-                    if (type === "deploy") {
-                        console.log('Skipping deploy type experiment:', expID);
-                        continue; // Skip processing if type is "deploy"
-                    }
+        function processExperiences(sourceData, allData, isHistorical = false) {
+            const variants = []; // Array to store variants
 
-                    let experience = sourceData[expID];
-                    let variation = experience.variation || {};
-                    let varID = variation.id || experience.variation_id;
+            for (let expID in sourceData) {
+                // Retrieve the type from main data structure to decide exclusion
+                let type = allData.experiences[expID]?.type;
+                if (type === "deploy") {
+                    console.log('Skipping deploy type experiment:', expID);
+                    continue; // Skip processing if type is "deploy"
+                }
 
-                    if (varID && !exp_list.includes(expID)) {
-                        exp_list.push(expID);
-                        variation_list.push(varID);
-                        /* Only remove if Shopify Library available on Shopify Site
-                            analytics.track('Experiment Viewed', {
-                            exp: expID + ':' + varID
-                        });
-                        */
-                        console.log(
-                            'Adding experiment:',
-                            expID,
-                            'with variation:',
-                            varID,
-                            'from',
-                            isHistorical ? 'historical data' : 'current data'
-                        );
-                        analytics.track('Experiment Viewed', {
-                          exp: expID + ':' + varID
-                        });
-                    }
+                let experience = sourceData[expID];
+                let variation = experience.variation || {};
+                let varID = variation.id || experience.variation_id;
+
+                if (varID && !exp_list.includes(expID)) {
+                    exp_list.push(expID);
+                    variation_list.push(varID);
+
+                    // Create variant string and push to variants array
+                    const variantString = `${expID}:${varID}`;
+                    variants.push(variantString);
+
+                    console.log(
+                        'Adding experiment:',
+                        expID,
+                        'with variation:',
+                        varID,
+                        'from',
+                        isHistorical ? 'historical data' : 'current data'
+                    );
+
                 }
             }
+
+            return variants; // Return the array of variants
+        }
 
             // Process current and historical data
             if (convert.currentData && convert.currentData.experiences) {
