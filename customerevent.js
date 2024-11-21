@@ -1,6 +1,8 @@
 const DEBUG = true; // Set to false to disable debug logs
 const ENABLE_PROPERTY_FILTERING = false; // Set to false to disable property filtering
 
+// Change to fit your own Convert goals
+// If need to create them, create a Custom JS Goal and get its ids
 const purchase_goalid = '100136097';
 const addToCart_goalid = '100136098';
 const checkoutStarted_goalid = '100132287';
@@ -61,36 +63,58 @@ function getCookie(name) {
     return null;
 }
 
-// Function to get convert_attributes from localStorage, cookie, or purchase event
 function getConvertAttributes(event) {
+    debugLog("Starting getConvertAttributes function");
+
     let result = localStorage.getItem('convert_attributes');
+    debugLog("LocalStorage result:", result);
+
     if (!result) {
         debugLog("convert_attributes not found in localStorage, checking cookie");
         result = getCookie('convert_attributes');
+        debugLog("Cookie result:", result);
+
         if (result) {
             debugLog("convert_attributes found in cookie");
-            // Decode the URL-encoded string
-            result = decodeURIComponent(result);
+            try {
+                result = decodeURIComponent(result);
+                // Validate JSON
+                JSON.parse(result);
+                debugLog("Successfully decoded cookie value:", result);
+            } catch (e) {
+                console.error("Error decoding cookie value:", e);
+                result = null;
+            }
         } else if (event && event.data && event.data.checkout) {
-            debugLog("convert_attributes not found in cookie, checking event data");
+            debugLog("Checking event data:", event.data);
             result = findProperty(event.data.checkout, 'customAttributes');
+            debugLog("Event data result:", result);
+
             if (result) {
                 debugLog("convert_attributes found in event custom attributes");
-                // Ensure result is a string
                 if (typeof result !== 'string') {
                     result = JSON.stringify(result);
                 }
-            } else {
-                debugLog("convert_attributes not found in event custom attributes");
             }
-        } else {
-            debugLog("No valid event data to check for custom attributes");
         }
-    } else {
-        debugLog("convert_attributes found in localStorage");
     }
-    return result;
+
+    // Validate final result
+    if (result) {
+        try {
+            const parsed = JSON.parse(typeof result === 'string' ? result : JSON.stringify(result));
+            debugLog("Final validated result:", parsed);
+            return JSON.stringify(parsed);
+        } catch (e) {
+            console.error("Error validating final result:", e);
+            return null;
+        }
+    }
+
+    debugLog("No valid convert_attributes found");
+    return null;
 }
+
 
 function postConversion(convert_attributes_str, goalid) {
     debugLog('Starting postConversion function with goal id:', goalid);
@@ -289,16 +313,22 @@ analytics.subscribe("checkout_completed", async (event) => {
 
 analytics.subscribe("checkout_started", async (event) => {
     debugLog("Event received for checkout_started.");
+    debugLog("Event data:", event);
 
     try {
         let result = getConvertAttributes(event);
         if (!result) {
             console.error("Error: Unable to find convert_attributes in localStorage, cookie, or event data");
-            return; // Exit early if no data is found
+            result = getConvertAttributes(event);
+            if (!result) {
+                return;
+            }
         }
+
+        debugLog("Convert attributes before posting:", result);
         await postConversion(result, checkoutStarted_goalid);
     } catch (error) {
-        console.error('Error retrieving convert_attributes for checkout_started:', error);
+        console.error('Error in checkout_started handler:', error);
     }
 });
 
