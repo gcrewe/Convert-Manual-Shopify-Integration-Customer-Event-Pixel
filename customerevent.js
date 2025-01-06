@@ -333,7 +333,7 @@ analytics.subscribe("checkout_started", async (event) => {
 });
 
 analytics.subscribe("product_added_to_cart", async (event) => {
-    debugLog("Event received for checkout_started.");
+    debugLog("Event received for product_added_to_cart.");
 
     try {
         let result = getConvertAttributes(event);
