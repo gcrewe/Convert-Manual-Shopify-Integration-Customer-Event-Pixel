@@ -17,6 +17,35 @@ const filterCriteria = {
     checkValue: false // Enable or disable value matching
 };
 
+// Add the checkCriteria function if it was missing from the original code
+function checkCriteria(event, criteria) {
+    // If criteria checking is disabled, always return true
+    if (!criteria.enabled) return true;
+
+    // Check if required properties exist
+    if (criteria.checkExistence && criteria.checkExistence.length > 0) {
+        for (const prop of criteria.checkExistence) {
+            if (findProperty(event, prop) === undefined) {
+                debugLog(`Required property ${prop} not found in event`);
+                return false;
+            }
+        }
+    }
+
+    // Check if values match criteria
+    if (criteria.checkValue && criteria.matchValue) {
+        for (const prop in criteria.matchValue) {
+            const value = findProperty(event, prop);
+            if (value !== criteria.matchValue[prop]) {
+                debugLog(`Property ${prop} value ${value} does not match criteria ${criteria.matchValue[prop]}`);
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 function isValidJSON(data) {
     try {
         JSON.parse(data);
@@ -114,7 +143,6 @@ function getConvertAttributes(event) {
     debugLog("No valid convert_attributes found");
     return null;
 }
-
 
 function postConversion(convert_attributes_str, goalid) {
     debugLog('Starting postConversion function with goal id:', goalid);
@@ -219,13 +247,62 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
 
         debugLog("Building POST data for transaction.");
 
+        // Get the transaction amount in the PRESENTMENT currency (what customer sees)
         let transactionAmount = parseFloat(purchase_event.data.checkout.totalPrice.amount);
         const originalTransactionAmount = transactionAmount;
 
         debugLog(`Original Transaction amount: ${originalTransactionAmount} ${purchase_event.data.checkout.totalPrice.currencyCode}`);
-        debugLog(`Min order value: ${convert_attributes.min_order_value}, Max order value: ${convert_attributes.max_order_value}`);
 
-        if (transactionAmount >= convert_attributes.min_order_value && transactionAmount <= convert_attributes.max_order_value) {
+        // Try to get the base currency amount directly
+        let baseCurrencyAmount = null;
+
+        // Check if shop money (base currency) data is available
+        if (purchase_event.data.checkout.totalPrice && purchase_event.data.checkout.totalPrice.shopMoney) {
+            baseCurrencyAmount = parseFloat(purchase_event.data.checkout.totalPrice.shopMoney.amount);
+            debugLog(`Found direct shop base currency amount: ${baseCurrencyAmount} ${purchase_event.data.checkout.totalPrice.shopMoney.currencyCode}`);
+        } 
+
+        // Alternative path if first method not available
+        else if (purchase_event.data.checkout.shop_money_total_price) {
+            baseCurrencyAmount = parseFloat(purchase_event.data.checkout.shop_money_total_price);
+            debugLog(`Found shop_money_total_price: ${baseCurrencyAmount}`);
+        }
+
+        // Check if currency code and rate are available (another alternative)
+        else if (purchase_event.data.checkout.currencyCode && 
+                 purchase_event.data.checkout.presentmentCurrencyRate) {
+            const presentmentCurrency = purchase_event.data.checkout.currencyCode;
+            const presentmentRate = parseFloat(purchase_event.data.checkout.presentmentCurrencyRate);
+
+            if (presentmentRate !== 1) {
+                baseCurrencyAmount = originalTransactionAmount / presentmentRate;
+                debugLog(`Calculated base currency amount using rate ${presentmentRate}: ${baseCurrencyAmount}`);
+            } else {
+                // If rate is 1, it's already in base currency
+                baseCurrencyAmount = originalTransactionAmount;
+                debugLog('Using original amount as rate is 1');
+            }
+        }
+
+        // Check if we have a currency rate directly on the checkout object
+        else if (purchase_event.data.checkout.currency_rate) {
+            const currencyRate = parseFloat(purchase_event.data.checkout.currency_rate);
+            if (currencyRate !== 1) {
+                baseCurrencyAmount = originalTransactionAmount / currencyRate;
+                debugLog(`Calculated base currency amount using checkout.currency_rate ${currencyRate}: ${baseCurrencyAmount}`);
+            } else {
+                baseCurrencyAmount = originalTransactionAmount;
+            }
+        }
+
+        // If we found a base currency amount, use it instead of applying conversion rate
+        if (baseCurrencyAmount !== null) {
+            debugLog(`Using base currency amount: ${baseCurrencyAmount} instead of converted amount`);
+            transactionAmount = baseCurrencyAmount;
+        }
+        // If we couldn't find base currency amount, continue with original logic
+        else {
+            debugLog(`Could not find direct base currency amount, using original logic with conversion rate`);
 
             if (convert_attributes.conversionRate && convert_attributes.conversionRate !== 1) {
                 debugLog(
@@ -237,8 +314,12 @@ async function postTransaction(convert_attributes_str, purchase_event, purchase_
                     `Adjusted Transaction amount after conversion: ${transactionAmount}`
                 );
             }
+        }
 
-            debugLog(`Performing transaction with amount: ${transactionAmount} using conversion rate: ${convert_attributes.conversionRate}`);
+        debugLog(`Min order value: ${convert_attributes.min_order_value}, Max order value: ${convert_attributes.max_order_value}`);
+
+        if (transactionAmount >= convert_attributes.min_order_value && transactionAmount <= convert_attributes.max_order_value) {
+            debugLog(`Performing transaction with amount: ${transactionAmount}`);
 
             const transactionId = purchase_event.data.checkout.order.id;
 
@@ -345,4 +426,4 @@ analytics.subscribe("product_added_to_cart", async (event) => {
     } catch (error) {
         console.error('Error retrieving convert_attributes for checkout_started:', error);
     }
-}); 
+});
