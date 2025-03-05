@@ -1,3 +1,5 @@
+// version 10.0
+
 const DEBUG = true; // Set to false to disable debug logs
 const ENABLE_PROPERTY_FILTERING = false; // Set to false to disable property filtering
 
