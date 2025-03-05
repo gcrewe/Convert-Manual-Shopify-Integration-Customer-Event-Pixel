@@ -1,5 +1,19 @@
+// version 10.0
 // Debugging flag
 const DEBUG = true;  // Set to true to enable debug logs, set to false to disable them
+
+// Enable property filtering flag
+const ENABLE_PROPERTY_FILTERING = false; // Set to false to disable property filtering
+
+// Configuration object for filtering criteria
+const filterCriteria = {
+    enabled: false, // Enable or disable criteria checking
+    checkExistence: ['sku'], // List of properties that must exist
+    matchValue: {
+        'sku': '23026961-pink-united-states-l-diameter-7-5cm' // Exact string values to match
+    },
+    checkValue: false // Enable or disable value matching
+};
 
 // Goal IDs
 const purchaseGoalId = '100136097';   // General goal ID for all purchases
@@ -44,6 +58,43 @@ function findProperty(obj, propertyName) {
   }
 
   return currentValue;
+}
+
+// Function to check criteria for filtering
+function checkCriteria(event, criteria) {
+  debugLog('Checking criteria for filtering');
+
+  // If criteria checking is disabled, always return true
+  if (!criteria.enabled) {
+    debugLog('Criteria checking is disabled, bypassing checks');
+    return true;
+  }
+
+  // Check if required properties exist
+  if (criteria.checkExistence && criteria.checkExistence.length > 0) {
+    for (const prop of criteria.checkExistence) {
+      if (findProperty(event, prop) === undefined) {
+        debugLog(`Required property ${prop} not found in event, filtering out`);
+        return false;
+      }
+    }
+    debugLog('All required properties exist');
+  }
+
+  // Check if values match criteria
+  if (criteria.checkValue && criteria.matchValue) {
+    for (const prop in criteria.matchValue) {
+      const value = findProperty(event, prop);
+      if (value !== criteria.matchValue[prop]) {
+        debugLog(`Property ${prop} value ${value} does not match criteria ${criteria.matchValue[prop]}, filtering out`);
+        return false;
+      }
+    }
+    debugLog('All property values match criteria');
+  }
+
+  debugLog('Event passed all filtering criteria');
+  return true;
 }
 
 // Function to check if purchase is a subscription
@@ -143,7 +194,70 @@ async function postTransaction(convert_attributes_str, purchase_event, goalIds) 
       return;
     }
 
+    // Apply the filtering criteria if enabled
+    if (ENABLE_PROPERTY_FILTERING && !checkCriteria(purchase_event, filterCriteria)) {
+      debugLog("Transaction filtered out based on criteria");
+      return;
+    }
+
     debugLog("Building POST data for transaction");
+
+    // Get the transaction amount in the PRESENTMENT currency (what customer sees)
+    let transactionAmount = parseFloat(purchase_event.data.checkout.totalPrice.amount);
+    const originalTransactionAmount = transactionAmount;
+
+    debugLog(`Original Transaction amount: ${originalTransactionAmount} ${purchase_event.data.checkout.totalPrice.currencyCode}`);
+
+    // Try to get the base currency amount directly
+    let baseCurrencyAmount = null;
+
+    // Method 1: Check if shop money (base currency) data is available
+    if (purchase_event.data.checkout.totalPrice && purchase_event.data.checkout.totalPrice.shopMoney) {
+      baseCurrencyAmount = parseFloat(purchase_event.data.checkout.totalPrice.shopMoney.amount);
+      debugLog(`Found direct shop base currency amount: ${baseCurrencyAmount} ${purchase_event.data.checkout.totalPrice.shopMoney.currencyCode}`);
+    } 
+
+    // Method 2: Alternative path if first method not available
+    else if (purchase_event.data.checkout.shop_money_total_price) {
+      baseCurrencyAmount = parseFloat(purchase_event.data.checkout.shop_money_total_price);
+      debugLog(`Found shop_money_total_price: ${baseCurrencyAmount}`);
+    }
+
+    // Method 3: Check if currency code and rate are available
+    else if (purchase_event.data.checkout.currencyCode && 
+            purchase_event.data.checkout.presentmentCurrencyRate) {
+      const presentmentCurrency = purchase_event.data.checkout.currencyCode;
+      const presentmentRate = parseFloat(purchase_event.data.checkout.presentmentCurrencyRate);
+
+      if (presentmentRate !== 1) {
+        baseCurrencyAmount = originalTransactionAmount / presentmentRate;
+        debugLog(`Calculated base currency amount using rate ${presentmentRate}: ${baseCurrencyAmount}`);
+      } else {
+        // If rate is 1, it's already in base currency
+        baseCurrencyAmount = originalTransactionAmount;
+        debugLog('Using original amount as rate is 1');
+      }
+    }
+
+    // Method 4: Check if we have a currency rate directly on the checkout object
+    else if (purchase_event.data.checkout.currency_rate) {
+      const currencyRate = parseFloat(purchase_event.data.checkout.currency_rate);
+      if (currencyRate !== 1) {
+        baseCurrencyAmount = originalTransactionAmount / currencyRate;
+        debugLog(`Calculated base currency amount using checkout.currency_rate ${currencyRate}: ${baseCurrencyAmount}`);
+      } else {
+        baseCurrencyAmount = originalTransactionAmount;
+      }
+    }
+
+    // If we found a base currency amount, use it
+    if (baseCurrencyAmount !== null) {
+      debugLog(`Using base currency amount: ${baseCurrencyAmount} instead of presentment amount`);
+      transactionAmount = baseCurrencyAmount;
+    } else {
+      debugLog(`No base currency amount found, using original presentment amount: ${transactionAmount}`);
+    }
+
     const transactionId = purchase_event.data.checkout.order.id;
     const post = {
       'cid': convert_attributes.cid,
@@ -158,7 +272,7 @@ async function postTransaction(convert_attributes_str, purchase_event, goalIds) 
         'goals': goalIds,
         'vars': convert_attributes.vars,        
         'exps': convert_attributes.exps,
-        'r': parseFloat(purchase_event.data.checkout.totalPrice.amount),
+        'r': transactionAmount,
         'prc': purchase_event.data.checkout.lineItems.length
         }
       ]
